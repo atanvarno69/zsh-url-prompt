@@ -1,0 +1,189 @@
+#!/usr/bin/env zsh
+#
+# zsh simple prompt
+#
+# https://github.com/atanvarno69/zsh-simple-prompt
+#
+# MIT License <https://opensource.org/licenses/MIT>
+
+prompt_url_help () {
+    cat <<'EOF'
+A URL-style prompt. This prompt is configurable. You can invoke it with:
+
+    prompt url [OPTIONS...]
+
+OPTIONS
+    --color-authority COLOR  Color for the authority element.
+    --color-clock COLOR      Color for the clock element.
+    --color-failure COLOR    Color for failure status code (also applied to the
+                             sigil unless --no-sigil-failure is given).
+    --color-info COLOR       Color for informational elements.
+    --color-path COLOR       Color for the path element.
+    --color-scheme COLOR     Color for the scheme element.
+    --color-sigil COLOR      Color for the sigil element.
+    --color-success COLOR    Color for successful (0) status code.
+    --color-symbol COLOR     Color for seperating symbols.
+    --color-text COLOR       Color for uncolored text elements.
+    --no-authority           Do not display the authority (//user@host) element.
+    --no-clock               Do not display the clock.
+    --no-failure-code        Do not display the last command's exit code for
+                             failures.
+    --no-path                Do not display the path (/path) element.
+    --no-scheme              Do not display the scheme ('zsh:') element.
+    --no-seconds             Do not display seconds in the clock (ignored if
+                             --no-clock is given).
+    --no-sigil               Do not display the trailing sigil element.
+    --no-sigil-failure       Do not change the sigil color on a failure.
+    --no-success-code        Do not display the last command's exit code for
+                             successes.
+    --no-user                Do not display the userinfo (user@) element.
+    --short-path             Only display the path base directory (ignored if
+                             --no-path is given).
+
+COLOR
+     For valid color options see:
+     https://zsh.sourceforge.io/Doc/Release/Zsh-Line-Editor.html#Character-Highlighting
+EOF
+}
+
+prompt_url_get_path() {
+    pwd | sed "s:^${HOME}:~:"
+}
+
+prompt_url_lslash () {
+    if get_path | grep -q '^~'; then echo '/'; else echo ''; fi
+}
+
+prompt_url_dirn() {
+    cwd=$(get_path)
+    if [ $cwd = '/' ] || [ $cwd = '~' ]; then
+        echo ''
+    else
+        echo "$(dirname $cwd)/" | sed 's://:/:'
+    fi
+}
+
+prompt_url_basen() {
+    basename $(get_path)
+}
+
+prompt_url_hr() {
+    date +%H
+}
+
+prompt_url_min() {
+    date +%M
+}
+
+prompt_url_sec() {
+    date +%S
+}
+
+sigil_symbol() {
+    if [ "${USER}" = 'root' ]; then echo '#'; else echo '$'; fi
+}
+
+prompt_url_setup () {
+    # Set zsh options
+    prompt_opts=(cr percent subst)
+
+    # Set function defaults
+    authority=1; clock=1; clock_seconds=1; code_success=1; code_failure=1;
+    long_path=1; show_path=1; scheme=1; sigil=1; sigil_failure=1; user=1;
+
+    # Default color pallette, see https://ferdychristant.com/color-for-the-color-challenged-884c7aa04a56
+    white='#d1d6d8' # gray-4
+    gray='#666968' # gray-8
+    green='#2b8a3e' # green-9
+    red='#c92a2a' # red-9
+    yellow='#e67700' # yellow-9
+    blue='#1864ab' # blue-9
+
+    # Set default colors
+    c_authority="${yellow}"; c_clock="${white}"; c_failure="${red}"; c_info="${blue}"; c_path="${blue}";
+    c_scheme="${yellow}"; c_sigil="${green}"; c_success="${green}"; c_symbol="${gray}"; c_text="${white}";
+
+    # Process function options
+    while [ -n "${1}" ]; do
+        case "${1}" in
+            --color-authority) c_authority="${2}"; shift ;;
+            --color-clock) c_clock="${2}"; shift ;;
+            --color-failure) c_failure="${2}"; shift ;;
+            --color-path) c_path="${2}"; shift ;;
+            --color-scheme) c_scheme="${2}"; shift ;;
+            --color-sigil) c_sigil="${2}"; shift ;;
+            --color-success) c_success="${2}"; shift ;;
+            --color-symbol) c_symbol="${2}"; shift ;;
+            --color-text) c_text="${2}"; shift ;;
+            --no-authority) authority=0 ;;
+            --no-clock) clock=0 ;;
+            --no-failure-code) code_failure=0 ;;
+            --no-path) show_path=0 ;;
+            --no-scheme) scheme=0 ;;
+            --no-seconds) clock_seconds=0 ;;
+            --no-sigil) sigil=0 ;;
+            --no-sigil-failure) sigil_failure=0 ;;
+            --no-success-code) code_success=0 ;;
+            --no-user) user=0 ;;
+            --short-path) long_path=0 ;;
+            --) break ;;
+            -*) echo "Unrecognized option ${1}." 1>&2; return 1 ;;
+            *) break ;;
+        esac
+        shift
+    done
+
+    # Set prompts
+    PS1=''
+    PS2='%F{c_info}%_%f%F{c_text}...%f'
+    PS3='%F{$c_info}?%f'
+    PS4='%F{$c_symbol}+%f%F{$c_info}%N%f%F{$c_symbol}:%f%F{$c_info}%i%f'
+    SPROMPT='%F{$c_failure}%R%f %F{$c_symbol}>%f %F{$c_success}%r%f %F{$c_symbol}[%f%F{$c_text}nyae%f%F{$c_symbol}]%f'
+    RPS1=''
+    RPS2=''
+    [ "${scheme}" -gt 0 ] && PS1+='%F{$c_scheme}zsh%f%F{$c_symbol}:%f'
+    if [ "${authority}" -gt 0 ]; then
+        PS1+='%F{$c_symbol}//%f'
+        [ "${user}" -gt 0 ] && PS1+='%F{$c_authority}%n%f%F{$c_symbol}@%f'
+        PS1+='%F{$c_authority}%M%f'
+    fi
+    if [ "${show_path}" -gt 0 ]; then
+        [ "${long_path}" -gt 0 ] && PS1+='%F{$c_symbol}$(prompt_url_lslash)%f%F{$c_path}$(prompt_url_dirn)%f'
+        PS1+='%B%F{$c_path}$(prompt_url_basen)%b%f'
+    fi
+    if [ "${sigil}" -gt 0 ]; then
+        if [ "${sigil_failure}" -gt 0 ]; then
+            PS1+='%(?.%F{$c_sigil}.%F{$c_failure})$(prompt_url_sigil_symbol)%f'
+        else
+            PS1+='%F{$c_sigil}$(prompt_url_sigil_symbol)%f'
+        fi
+        PS2+='%F{$c_sigil}>%f'
+        PS3+='%F{$c_sigil}>%f'
+        PS4+='%F{$c_sigil}>%f'
+        SPROMPT+='%F{$c_sigil}?%f'
+    fi
+    if [ "${code_failure}" -gt 0 ] && [ "${code_success}" -gt 0 ]; then
+        RPS1+='%(?.%F{$c_success}.%F{$c_failure})[%?]%f'
+    elif [ "${code_failure}" -gt 0 ]; then
+        RPS1='%(?..%F{$c_failure}[%?]%f)'
+    elif [ "${code_success}" -gt 0 ]; then
+        RPS1='%(?.%F{$c_success}[%?]%f.)'
+    fi
+    if [ "${clock}" -gt 0 ]; then
+        RPS1+='%F{$c_symbol}[%f%F{$c_clock}$(prompt_url_hr)%f%F{$c_symbol}:%f%F{$c_clock}$(prompt_url_min)%f'
+        RPS2+='%F{$c_symbol}[%f%F{$c_clock}$(prompt_url_hr)%f%F{$c_symbol}:%f%F{$c_clock}$(prompt_url_min)%f'
+        if [ "${clock_seconds}" -gt 0 ]; then
+            RPS1+='%F{$c_symbol}:%f%F{$c_clock}$(prompt_url_sec)%f'
+            RPS2+='%F{$c_symbol}:%f%F{$c_clock}$(prompt_url_sec)%f'
+        fi
+        RPS1+='%F{$c_symbol}]%f'
+        RPS2+='%F{$c_symbol}]%f'
+    fi
+    PS1+=' '
+    PS2+=' '
+    PS3+=' '
+    PS4+=' '
+    SPROMPT+=' '
+}
+
+prompt_url_setup "${@}"
